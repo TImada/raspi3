@@ -1,0 +1,75 @@
+- Fedora 27 aarch64 for Raspberry Pi 3
+1. Create an OS-ready SD card
+-> Follow the instruction at https://fedoraproject.org/wiki/Architectures/ARM/Raspberry_Pi
+-> Use a compressed image for aarch64
+
+2. Modify the SD card
+-> Generate a password for root, and modifiy /etc/shadow in the SD card
+-> Create a configuration file for eth0 in /etc/sysconfig/network-scripts/
+   (You can modify ifcfg-enp1s0 in the same directory for this aim)
+-> Modify the initial script in /usr/libexec/initial-setup/run-initial-setup so that additional configurations can be canceled
+$ cat /usr/libexec/initial-setup/run-initial-setup
+#!/bin/bash
+IS_UNIT=initial-setup.service
+echo "Initial Setup finished successfully, disabling" | systemd-cat -t initial-setup -p 6
+systemctl -q is-enabled $IS_UNIT && systemctl disable $IS_UNIT
+echo "Initial Setup has been disabled" | systemd-cat -t initial-setup -p 6
+
+3. Boot from the SD card
+-> Add another user and install additional packages
+
+4. Install clasp, cling and aspcud
+-> get the source code from the github.com
+-> Follow each README.md
+
+5. Install opam
+-> yum install ocaml ocaml-ocamldoc ocaml-findlib ocaml-ocamlbuild ocaml-cudf ocaml-json-wheel ocaml-extlib ocaml-dose3 ocaml-cmdliner ocaml-re ocaml-ocamlgraph
+-> get v1.2.2 from https://github.com/ocaml/opam/archive/1.2.2.tar.gz
+-> Follow README.md to compile and install opam
+-> Execute "opam init" and other commands for you
+
+6. Update the Solo5 repository for aarch64
+-> Execute "opam repo add solo5-dev git://github.com/Solo5/opam-solo5"
+
+7. Install Solo5(ukvm)-related packages
+-> as you want :-)
+-> output example
+$ uname -a
+Linux raspi3.localdomain 4.13.9-300.fc27.aarch64 #1 SMP Mon Oct 23 13:33:18 UTC 2017 aarch64 aarch64 aarch64 GNU/Linux
+$ sudo ./ukvm-bin ./console.ukvm
+            |      ___|
+  __|  _ \  |  _ \ __ \
+\__ \ (   | | (   |  ) |
+____/\___/ _|\___/____/
+Solo5: Memory map: 512 MB addressable:
+Solo5:     unused @ (0x0 - 0xfffff)
+Solo5:       text @ (0x100000 - 0x1ebfff)
+Solo5:     rodata @ (0x1ec000 - 0x21dfff)
+Solo5:       data @ (0x21e000 - 0x2edfff)
+Solo5:       heap >= 0x2ee000 < stack < 0x20000000
+hello
+world
+hello
+world
+hello
+world
+hello
+world
+Solo5: solo5_exit(0) called
+
+(Optional) Configuration for the USB rootfs
+-> Create /etc/dracut.conf.d/usb.conf, then add the following line
+add_drivers+="libcrc32c vfat fat uas usb_storage brcmfmac brcmutil cfg80211 crc32_ce rfkill bcm2835_rng leds_gpio bcm2835_wdt smsc95xx usbnet mii mmc_block vc4 syscopyarea sysfillrect sysimgblt fb_sys_fops drm pwm_bcm2835 dwc2 sdhci_iproc sdhci_pltfm udc_core sdhci i2c_bcm2835 bcm2835 bcm2835_dma phy_generic"
+-> Backup the original initramfs and execute the dracut command
+mv /boot/initramfs-4.13.9-300.fc27.aarch64.img /boot/initramfs-4.13.9-300.fc27.aarch64.img.orig
+dracut /boot/initramfs-4.13.9-300.fc27.aarch64.img
+-> rsync the whole SD disk to your USB drive 
+(/dev/sda1 must be formatted with vfat)
+mount /dev/sda3 /mnt
+mkdir /mnt/boot
+mount /dev/sda2 /mnt/boot
+mkdir /mnt/boot/efi
+mount /dev/sda1 /mnt/boot/efi
+rsync -avz / /mnt/
+-> Modify /etc/fstab and /boot/efi/EFI/fedora/grub.cfg on the USB drive
+   UUID of the drive can be found by like "tune2fs -l /dev/sda1 | grep UUID"
