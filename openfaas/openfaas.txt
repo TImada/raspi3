@@ -1,0 +1,19 @@
+- Installation of OpenFaaS on Raspberry Pi 3 (aarch64) with Docker Swarm
+1. Obtain the source code of OpenFaaS from the github Web site
+-> git clone https://github.com/openfaas/faas
+-> git clone https://github.com/openfaas/faas-swarm
+
+2. Copy the following two files
+-> cp docker-compose.arm64.yml ./faas/
+-> cp Dockerfile ./faas/sample-functions/CHelloWorld/src/
+
+3. Dispatch a stack
+-> cd ./faas/
+-> docker stack deploy func --compose-file docker-compose.arm64.yml
+
+4. Build a Docker image based on a C-based program
+-> cd ./sample-functions/CHelloWorld/src/
+-> docker image build -t functions/helloc
+
+5. Deploy a function with the Docker image you built
+-> faas-cli deploy --network func_functions --name chello --image functions/chello 
