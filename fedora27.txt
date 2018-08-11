@@ -71,18 +71,23 @@ world
 Solo5: solo5_exit(0) called
 
 (Optional) Configuration for the USB rootfs
--> Create /etc/dracut.conf.d/usb.conf, then add the following line
-add_drivers+="libcrc32c vfat fat uas usb_storage brcmfmac brcmutil cfg80211 crc32_ce rfkill bcm2835_rng leds_gpio bcm2835_wdt smsc95xx usbnet mii mmc_block vc4 syscopyarea sysfillrect sysimgblt fb_sys_fops drm pwm_bcm2835 dwc2 sdhci_iproc sdhci_pltfm udc_core sdhci i2c_bcm2835 bcm2835 bcm2835_dma phy_generic"
--> Backup the original initramfs and execute the dracut command
-mv /boot/initramfs-4.13.9-300.fc27.aarch64.img /boot/initramfs-4.13.9-300.fc27.aarch64.img.orig
-dracut /boot/initramfs-4.13.9-300.fc27.aarch64.img
--> rsync the whole SD disk to your USB drive 
-(/dev/sda1 must be formatted with vfat)
-mount /dev/sda3 /mnt
-mkdir /mnt/boot
-mount /dev/sda2 /mnt/boot
-mkdir /mnt/boot/efi
-mount /dev/sda1 /mnt/boot/efi
-rsync -avz / /mnt/
--> Modify /etc/fstab and /boot/efi/EFI/fedora/grub.cfg on the USB drive
-   UUID of the drive can be found by like "tune2fs -l /dev/sda1 | grep UUID"
+-> Attach the SD card including Fedora OS (created in the above) and an empty USB-based disk to a Linux machine.
+   (Assume the SD card is /dev/sda, and the USB-based Disk is /dev/sdb)
+-> Create two partitions (for OS area and swap) on the USB-based disk.
+   fdisk /dev/sdb # create the two parititions depending on the size you want to have.
+   /dev/sdb1: OS area
+   /dev/sdb2: swap
+-> copy the original OS area in the SD card to the created partition for OS
+   dd if=/dev/sda5 of=/dev/sdb1 bs=32M
+   e2fsck -f /dev/sdb1
+   resize2fs /dev/sdb1
+-> Format the swap partition
+   mkswap /dev/sdb2
+-> Modify /etc/fstab and /boot/efi/EFI/fedora/grub.cfg on the SD card and copy /etc/fstab on the SD card to the USB-based disk
+   mount /dev/sda5 /media # mount the OS partition on the SD card
+   vim /media/etc/fstab # modify it so that the rootfs and swap partitions can be used
+   vim /media/EFI/fedora/grub.cfg # modify it so that the rootfs can be used
+   mount /dev/sdb1 /mnt # mount the OS partition on the USB-based disk
+   cp /media/etc/fstab /mnt/etc/ # copy the fstab file
+   umount /mnt
+   umount /media
