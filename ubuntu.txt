@@ -1,0 +1,111 @@
+How to install Ubuntu 18.04 64-bit onto Raspberry Pi3 B:
+
+0. Requirements
+- 1x Raspberry Pi3 B board (referred as "Raspi3")
+- 1x SD card for system OS
+- 1x USB-based stick memory as an installer (<= 8GB size)
+- 1x (another) Ubuntu 18.04 machine (x86 should be OK)
+
+
+1. Create an installer image on the USB-based stick memory
+-> Attach the USB memory to the other Ubuntu 18.04 machine, then log in to the machine.
+   (The USB memory device: /dev/sda)
+
+1.1 Format the USB memory
+sudo fdisk /dev/sda
+sudo mkfs.vfat /dev/sda1
+
+1.2 Copy files required
+1.2.1 OS image files copy
+mount /dev/sda1 /mnt
+wget http://old-releases.ubuntu.com/releases/bionic/ubuntu-18.04-server-arm64.iso
+mkdir /tmp/dvd
+sudo mount -o loop ubuntu-18.04-server-arm64.iso /tmp/dvd
+sudo rsync -avz /tmp/dvd/ /mnt/
+cp /tmp/dvd/install/{initrd.gz,vmlinuz} /mnt/
+mkdir /tmp/efi-img
+sudo mount -o loop /tmp/dvd/boot/grub/efi.img /tmp/efi-img
+sudo cp -rT /tmp/efi-img/ /mnt/
+
+1.2.2 Firmware/boot loader copy
+# Boot loader copy
+wget http://archive.raspberrypi.org/debian/pool/main/r/raspberrypi-firmware/raspberrypi-bootloader_1.20180417-1_armhf.deb
+mkdir /tmp/piboot
+dpkg-deb -x raspberrypi-bootloader_1.20180417-1_armhf.deb /tmp/piboot
+sudo cp /tmp/piboot/boot/* /mnt
+# U-boot binary build and copy
+sudo apt install git make gcc gcc-aarch64-linux-gnu bison flex
+git clone --depth 1 git://git.denx.de/u-boot.git
+cd u-boot
+make rpi_3_defconfig
+make CROSS_COMPILE=aarch64-linux-gnu-
+sudo cp u-boot.bin /mnt/kernel8.img
+cd ..
+# Firmware copy
+wget http://ports.ubuntu.com/dists/bionic/main/installer-arm64/current/images/device-tree/bcm2837-rpi-3-b.dtb
+sudo mkdir -p /mnt/dtb/broadcom/
+sudo cp bcm2837-rpi-3-b.dtb /mnt/dtb/broadcom/
+# Finalization
+sync
+sudo umount /tmp/efi-img
+sudo umount /tmp/dvd
+sudo umount /mnt
+(Now you have created an installer image on the USB memory!!)
+
+
+2. Install Ubuntu on your Raspi3 with the USB-based installation disk
+- Preparation
+-> Attach the USB disk only to your Raspi3 and power it on!
+
+2.1 OS image installation on Raspi3
+-> You will see the rainbow screen. Wait until the GRUB menu comes up.
+-> Press ctrl+e to edit the kernel parameter.
+   Add "partman-partitioning/default_label=msdos" to the linux line.
+	 Then press ctrl+x to boot.
+-> Attach your SD card to your Raspi3 after the installer screen comes up.
+-> Setup locale, keyboard, network
+-> At disk partitioning, create the following four partitions on your SD card.
+   1st partition (/dev/mmcblk0p0): 128MB partition with EFI system and the boot flag on
+   2nd partition (/dev/mmcblk0p1): 256MB partition with ext4 for /boot
+	 3rd partition (/dev/mmcblk0p2): 512MB partition with swap
+	 4th partition (/dev/mmcblk0p3): 1GB or larger partition with ext4 for rootfs
+-> Go forward ..., software package installation will take long time. Be patient!
+-> GRUB installation will fail, but anyway continue the installation as it is not a problem. Select "Continue without boot loader".
+-> Remember which partition should be specified for booting up indicated on the screen (*1).
+   Ex. /boot/vmlinuz kernel on partition /dev/mmcblk0p2 and root=/dev/mmcblk0p4
+-> Finish the installation.
+-> Power your Raspi3 off, then detach the SD card from it.
+
+2.2 Partition flag manipulation on the other Ubuntu machine
+-> Attach the SD card to the other Ubuntu machine.
+-> Disable (remove) the ESP flag of the first partition on the SD card by using the gparted command or a similar command.
+-> Detach the SD card from the Ubuntu machine.
+
+2.3 Firmware/boot loader copy on the other Ubuntu machine
+-> Attach the SD card to your Linux machine, then power it on.
+   (The SD card device: /dev/mmcblk0)
+-> Copy required files.
+   mkdir /tmp/sdcard
+   sudo mount /dev/mmcblk0 /tmp/sdcard
+   sudo cp /tmp/piboot/boot/* /tmp/sdcard/
+   sudo cp ./u-boot/u-boot.bin /tmp/sdcard/kernel8.img
+   sudo mkdir -p /tmp/sdcard/dtb/broadcom/
+   sudo cp bcm2837-rpi-3-b.dtb /tmp/sdcard/dtb/broadcom/
+-> Power the Ubuntu machine off and detach the SD card.
+
+2.4 GRUB installation on Raspi3
+-> Attach the SD card to Raspi3, and power it on. The GRUB screen will come up.
+-> Boot from the GRUB manually by using the partition information at (*1).
+   grub> ls
+   (hd0) (hd0,msdos4) (hd0,msdos3) (hd0,msdos2) (hd0,msdos1)
+   grub> set root=(hd0,msdos2)
+   grub> linux /vmlinuz root=/dev/mmcblk0p4
+   grub> initrd /initrd.img
+   grub> boot
+-> Ubuntu OS will boot up!
+-> Create grub.cfg.
+   sudo grub-mkconfig -o /boot/grub/grub.cfg
+
+2.5 Settings
+-> Avoid updating the Linux kernel
+   sudo apt-mark hold linux-modules-4.15.0-20-generic linux-base linux-image-4.15.0-20-generic linux-headers-4.15.0-20 linux-modules-extra-4.15.0-20-generic linux-headers-4.15.0-20-generic linux-generic linux-image-generic linux-firmware linux-headers-generic grub-legacy-ec2 grub2-common grub-efi-arm64-bin grub-common grub-efi-arm64

@@ -1,0 +1,110 @@
+- Fedora 27 aarch64 for Raspberry Pi 3
+1. Create an OS-ready SD card
+-> Follow the instruction at https://fedoraproject.org/wiki/Architectures/ARM/Raspberry_Pi
+-> Use a compressed image for aarch64
+
+2. Modify the SD card
+-> Generate a password for root, and modifiy /etc/shadow in the SD card
+-> Create a configuration file for eth0 in /etc/sysconfig/network-scripts/
+   (You can modify ifcfg-enp1s0 in the same directory for this aim)
+-> Modify the initial script in /usr/libexec/initial-setup/run-initial-setup so that additional configurations can be canceled
+$ cat /usr/libexec/initial-setup/run-initial-setup
+#!/bin/bash
+IS_UNIT=initial-setup.service
+echo "Initial Setup finished successfully, disabling" | systemd-cat -t initial-setup -p 6
+systemctl -q is-enabled $IS_UNIT && systemctl disable $IS_UNIT
+echo "Initial Setup has been disabled" | systemd-cat -t initial-setup -p 6
+
+3. Boot from the SD card
+-> Add another user and install additional packages
+
+4. Install clasp, clingo and aspcud
+-> yum install gcc gcc-c++ make cmake bison re2c boost boost-devel clang
+-> git clone https://github.com/potassco/clasp
+   cd clasp
+   cmake -H. -B.
+   cmake --build .
+   cmake --build . --target install
+-> git clone https://github.com/potassco/clingo
+   cd clingo
+   git submodule update --init --recursive
+   cmake -H . -B . -DCMAKE_BUILD_TYPE=Release
+   cmake --build .
+   cmake --build . --target install
+-> git clone https://github.com/potassco/aspcud
+   cd aspcud
+   mkdir -p build/release
+   cd build/release
+   cmake -DCMAKE_BUILD_TYPE=Release ../..
+   make
+   make install
+
+5. Install opam
+(the opam command you can get by the yum command seemed buggy, so I decided to use an older version)
+-> yum install ocaml ocaml-ocamldoc ocaml-findlib ocaml-ocamlbuild jbuilder bubblewrap
+-> get v1.2.2 from https://github.com/ocaml/opam/releases/download/1.2.2/opam-full-1.2.2.tar.gz
+-> Follow README.md to compile and install opam
+-> Execute "opam init" and other commands for you
+
+6. Update the Solo5 repository for aarch64
+-> Execute "opam repo add solo5-dev git://github.com/Solo5/opam-solo5"
+
+7. Install Solo5(ukvm)-related packages
+-> as you want :-)
+-> output example
+$ dmesg
+[    0.000000] Booting Linux on physical CPU 0x0
+[    0.000000] Linux version 4.13.9-300.fc27.aarch64 (mockbuild@buildvm-aarch64-02.arm.fedoraproject.org) (gcc version 7.2.1 20170915 (Red Hat 7.2.1-2) (GCC)) #1 SMP Mon Oct 23 13:33:18 UTC 2017
+[    0.000000] Boot CPU: AArch64 Processor [410fd034]
+[    0.000000] Machine model: Raspberry Pi 3 Model B
+...
+[    1.319880] kvm [1]: 8-bit VMID
+[    1.321784] kvm [1]: IDMAP page: 995000
+[    1.323630] kvm [1]: HYP VA range: 800000000000:ffffffffffff
+[    1.326122] kvm [1]: Hyp mode initialized successfully
+[    1.327965] kvm [1]: Invalid trigger for IRQ4, assuming level low
+[    1.329790] kvm [1]: virtual timer IRQ4
+$ uname -a
+Linux raspi3.localdomain 4.13.9-300.fc27.aarch64 #1 SMP Mon Oct 23 13:33:18 UTC 2017 aarch64 aarch64 aarch64 GNU/Linux
+$ sudo ./ukvm-bin ./console.ukvm
+            |      ___|
+  __|  _ \  |  _ \ __ \
+\__ \ (   | | (   |  ) |
+____/\___/ _|\___/____/
+Solo5: Memory map: 512 MB addressable:
+Solo5:     unused @ (0x0 - 0xfffff)
+Solo5:       text @ (0x100000 - 0x1ebfff)
+Solo5:     rodata @ (0x1ec000 - 0x21dfff)
+Solo5:       data @ (0x21e000 - 0x2edfff)
+Solo5:       heap >= 0x2ee000 < stack < 0x20000000
+hello
+world
+hello
+world
+hello
+world
+hello
+world
+Solo5: solo5_exit(0) called
+
+(Optional) Configuration for the USB rootfs
+-> Attach the SD card including Fedora OS (created in the above) and an empty USB-based disk to a Linux machine.
+   (Assume the SD card is /dev/sda, and the USB-based Disk is /dev/sdb)
+-> Create two partitions (for OS area and swap) on the USB-based disk.
+   fdisk /dev/sdb # create the two parititions depending on the size you want to have.
+   /dev/sdb1: OS area
+   /dev/sdb2: swap
+-> copy the original OS area in the SD card to the created partition for OS
+   dd if=/dev/sda5 of=/dev/sdb1 bs=32M
+   e2fsck -f /dev/sdb1
+   resize2fs /dev/sdb1
+-> Format the swap partition
+   mkswap /dev/sdb2
+-> Modify /etc/fstab and /boot/efi/EFI/fedora/grub.cfg on the SD card and copy /etc/fstab on the SD card to the USB-based disk
+   mount /dev/sda5 /media # mount the OS partition on the SD card
+   vim /media/etc/fstab # modify it so that the rootfs and swap partitions can be used
+   vim /media/EFI/fedora/grub.cfg # modify it so that the rootfs can be used
+   mount /dev/sdb1 /mnt # mount the OS partition on the USB-based disk
+   cp /media/etc/fstab /mnt/etc/ # copy the fstab file
+   umount /mnt
+   umount /media
