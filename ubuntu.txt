@@ -109,3 +109,23 @@ sudo umount /mnt
 2.5 Settings
 -> Avoid updating the Linux kernel
    sudo apt-mark hold linux-modules-4.15.0-20-generic linux-base linux-image-4.15.0-20-generic linux-headers-4.15.0-20 linux-modules-extra-4.15.0-20-generic linux-headers-4.15.0-20-generic linux-generic linux-image-generic linux-firmware linux-headers-generic grub-legacy-ec2 grub2-common grub-efi-arm64-bin grub-common grub-efi-arm64
+-> Avoid high CPU utilization by systemd-resovled
+   Add "DNSStubListener=no" to /etc/systemd/resolved.conf
+   sudo systemctl restart systemd-resolved
+
+3. OCaml related settings
+3.1 opam update to use opam 2.x.y (Thanks a lot to avsm!)
+-> Execute the following commands
+sudo add-apt-repository ppa:avsm/ppa
+sudo apt-get update
+sudo apt-get install -y opam
+opam update -u
+
+3.2 OCaml installation
+-> Execute one of the following commands
+   opam switch 4.07.0 or
+   sudo apt-get install ocaml
+
+3.3 Install MirageOS packages by opam
+-> Add other packages as you want
+opam install mirage solo5-bindings-hvt ... 
